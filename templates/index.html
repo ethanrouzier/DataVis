@@ -1,0 +1,385 @@
+
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Auto Data-Vis </title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body class="theme-beige-green plots-1x">
+  <div class="container">
+    <header class="header-flex">
+      <h1 class="app-title">Auto Data-Vis</h1>
+      <div class="density-switch" role="group" aria-label="Taille des vignettes">
+        <button class="seg active" data-zoom="1x" title="1×">1×</button>
+        <button class="seg" data-zoom="2x" title="2×">2×</button>
+        <button class="seg" data-zoom="3x" title="3×">3×</button>
+      </div>
+      <div class="lang-switcher" role="navigation" aria-label="Language menu">
+        <button class="lang-toggle" id="langToggle" aria-haspopup="true" aria-expanded="false" title="Language">
+          <span id="langFlag">🇫🇷</span>
+        </button>
+        <div class="lang-menu" id="langMenu" role="menu" hidden>
+          <button class="lang-btn" data-lang="fr" role="menuitem" aria-label="Français">🇫🇷 Français</button>
+          <button class="lang-btn" data-lang="en" role="menuitem" aria-label="English">🇬🇧 English</button>
+          <button class="lang-btn" data-lang="es" role="menuitem" aria-label="Español">🇪🇸 Español</button>
+          <button class="lang-btn" data-lang="it" role="menuitem" aria-label="Italiano">🇮🇹 Italiano</button>
+          <button class="lang-btn" data-lang="de" role="menuitem" aria-label="Deutsch">🇩🇪 Deutsch</button>
+        </div>
+      </div>
+    </header>
+
+    <p class="muted" data-i18n="subtitle">Upload un CSV/XLSX + ton prompt → on appelle autovis.py et on affiche les figures.</p>
+
+    <!-- messages flask -->
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% if msgs %}
+        <div class="flash-stack">
+          {% for cat, msg in msgs %}
+            <div class="flash {{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form id="mainForm" class="panel" method="POST" enctype="multipart/form-data" action="/">
+      <div class="grid-2">
+        <!-- FICHIER (conserver name=datafile pour le backend) -->
+        <label class="field">
+          <span data-i18n="file.label">Fichier (CSV / XLSX)</span>
+          <input id="datafile" type="file" name="datafile" accept=".csv,.xlsx,.xls" class="visually-hidden" />
+          <div id="dropZone" class="dropzone" tabindex="0" role="button" data-i18n="drop.cta">
+            Glisser un fichier ici ou cliquer pour sélectionner
+          </div>
+          <div id="fileName" class="hint" aria-live="polite"></div>
+        </label>
+
+
+
+        <!-- PROMPT -->
+        <label class="field span-2">
+          <span data-i18n="prompt.label">Prompt</span>
+          <input type="text" name="prompt" placeholder="ex: Histogramme des ingrédients; Timeline des rendez-vous"/>
+        </label>
+
+        <!-- Mistral Key (form > env) -->
+        <label class="field span-2">
+          <span data-i18n="key.label">Mistral API Key (optionnel si déjà en env)</span>
+          <input type="password" name="mistral_api_key" autocomplete="off"/>
+        </label>
+      </div>
+
+      <div class="actions">
+         <input type="hidden" name="app_lang" id="appLangInput" value="fr"/>
+        <button class="btn" type="submit" data-i18n="btn.run">Générer</button>
+        <button class="btn ghost" type="reset" data-i18n="btn.reset">Réinitialiser</button>
+        <button class="btn" type="submit" formaction="{{ url_for('auto_report') }}" data-i18n="btn.auto">Report automatique</button>
+
+      </div>
+    </form>
+    {% if plan_text %}
+<section class="card">
+  <h2>Affiner la visualisation</h2>
+  <form method="POST" action="{{ url_for('refine') }}" class="form-grid">
+    <label class="field span-2">
+      <span>Nouvelle instruction</span>
+      <input
+        type="text"
+        name="refine_prompt"
+        placeholder="ex : mets le fond en bleu, filtre sur 2025, augmente bins=50"
+        required
+      />
+    </label>
+
+    <!-- On repasse le plan précédent au backend (format texte, multi-lignes) -->
+    <textarea name="previous_plan" hidden>{{ plan_text }}</textarea>
+
+    <div class="actions span-2">
+      <button type="submit" class="btn">Relancer</button>
+      <button type="button" class="btn ghost"
+              onclick="this.form.querySelector('[name=refine_prompt]').value=''">
+        Effacer
+      </button>
+    </div>
+  </form>
+</section>
+{% endif %}
+    <!-- Résultats -->
+    {% if error %}
+      <section class="card error"><h2>Erreur</h2><p>{{ error }}</p></section>
+    {% endif %}
+
+    {% if plan_text %}
+      <section class="card">
+        <h2>Plan</h2>
+        <pre class="code small">{{ plan_text }}</pre>
+      </section>
+    {% endif %}
+
+    {% for p in plots %}
+    <figure class="plot">
+      <a
+        class="dl-fab btn small ghost"
+        href="{{ p }}"
+        download="plot-{{ loop.index }}.png"
+        aria-label="Télécharger le graphique {{ loop.index }}"
+        title="Télécharger"
+      >⬇︎</a>
+      <img src="{{ p }}" alt="plot {{ loop.index }}" loading="lazy">
+    </figure>
+  {% endfor %}
+
+    {% if logs %}
+      <section class="card">
+        <h2>Logs</h2>
+        <pre class="code small">{{ logs }}</pre>
+      </section>
+    {% endif %}
+        {% if auto_prompts %}
+          <section class="card">
+            <h2 data-i18n="auto.title">Suggestions automatiques</h2>
+            <ol class="small">
+             {% for s in auto_prompts %}
+                <li>{{ s }}</li>
+              {% endfor %}
+            </ol>
+          </section>
+        {% endif %}
+    
+  </div>
+
+  <script>
+    // === I18N (pas d'auto-référence) ===
+    const I18N = {
+      fr: {
+        'title': 'Auto Data-Vis',
+        'subtitle': 'Upload un CSV/XLSX + ton prompt → on appelle autovis.py et on affiche les figures.',
+        'file.label': 'Fichier (CSV / XLSX)',
+        'sheet.label': 'Feuille (Tableur, optionnel)',
+        'prompt.label': 'Prompt',
+        'prompt.ph': 'ex: Histogramme des ingrédients; Timeline des rendez-vous',
+        'key.label': 'Mistral API Key (optionnel si déjà en env)',
+        'btn.run': 'Générer',
+        'btn.reset': 'Réinitialiser',
+        'drop.cta': 'Glisser un fichier ici ou cliquer pour sélectionner',
+        'unsupported': 'Format non supporté',
+        'btn.download': 'Télécharger',
+        'aria.download': 'Télécharger le graphique {n}',
+        'btn.auto': 'Report automatique',
+        'auto.title': 'Suggestions automatiques',
+      },
+      en: {
+        'title': 'Auto Data-Vis',
+        'subtitle': 'Upload a CSV/XLSX + your prompt → we call autovis.py and render the charts.',
+        'file.label': 'File (CSV / XLSX)',
+        'sheet.label': 'Sheet (optional)',
+        'prompt.label': 'Prompt',
+        'prompt.ph': 'e.g., Histogram of ingredients; Appointment timeline',
+        'key.label': 'Mistral API Key (optional if set in env)',
+        'btn.run': 'Generate',
+        'btn.reset': 'Reset',
+        'drop.cta': 'Drop a file here or click to select',
+        'unsupported': 'Unsupported format',
+        'btn.download': 'Download',
+        'aria.download': 'Download chart {n}',
+        'btn.auto': 'Auto-report',
+        'auto.title': 'Automatic suggestions',
+      },
+      es: {
+        'title': 'Auto Data-Vis',
+        'subtitle': 'Sube un CSV/XLSX + tu indicación → llamamos a autovis.py y mostramos las gráficas.',
+        'file.label': 'Archivo (CSV / XLSX)',
+        'sheet.label': 'Hoja (opcional)',
+        'prompt.label': 'Indicación',
+        'prompt.ph': 'p. ej.: Histograma de ingredientes; Línea de tiempo de citas',
+        'key.label': 'Clave de API de Mistral (opcional si ya está en env)',
+        'btn.run': 'Generar',
+        'btn.reset': 'Reiniciar',
+        'drop.cta': 'Arrastra un archivo aquí o haz clic para seleccionar',
+        'unsupported': 'Formato no compatible',
+        'btn.download': 'Descargar',
+        'aria.download': 'Descargar gráfico {n}',
+        'btn.auto': 'Informe automático',
+        'auto.title': 'Sugerencias automáticas'
+        },
+        it: {
+        'title': 'Auto Data-Vis',
+        'subtitle': 'Carica un CSV/XLSX + la tua istruzione → chiamiamo autovis.py e mostriamo i grafici.',
+        'file.label': 'File (CSV / XLSX)',
+        'sheet.label': 'Foglio (opzionale)',
+        'prompt.label': 'Istruzione',
+        'prompt.ph': 'es.: Istogramma degli ingredienti; Timeline degli appuntamenti',
+        'key.label': 'Chiave API Mistral (opzionale se già in env)',
+        'btn.run': 'Genera',
+        'btn.reset': 'Reimposta',
+        'drop.cta': 'Trascina un file qui o clicca per selezionare',
+        'unsupported': 'Formato non supportato',
+        'btn.download': 'Scarica',
+        'aria.download': 'Scarica grafico {n}'
+        },
+        de: {
+        'title': 'Auto Data-Vis',
+        'subtitle': 'Lade eine CSV/XLSX-Datei plus Eingabe hoch → wir rufen autovis.py auf und zeigen die Diagramme.',
+        'file.label': 'Datei (CSV / XLSX)',
+        'sheet.label': 'Tabelle (optional)',
+        'prompt.label': 'Eingabe',
+        'prompt.ph': 'z. B.: Histogramm der Zutaten; Termin-Zeitleiste',
+        'key.label': 'Mistral API-Schlüssel (optional, wenn bereits in env)',
+        'btn.run': 'Generieren',
+        'btn.reset': 'Zurücksetzen',
+        'drop.cta': 'Datei hier ablegen oder zum Auswählen klicken',
+        'unsupported': 'Format wird nicht unterstützt',
+        'btn.download': 'Herunterladen',
+        'aria.download': 'Diagramm {n} herunterladen',
+        'btn.auto': 'Automatischer Report',
+        'auto.title': 'Automatische Vorschläge',
+        }
+    };
+
+
+    const LANGS = ['fr','en','es','it','de'];
+    const FLAG  = { fr:'🇫🇷', en:'🇬🇧', es:'🇪🇸', it:'🇮🇹', de:'🇩🇪' };
+
+    function t(k){
+      const L = window.appLang || 'fr';
+      return (I18N[L] && I18N[L][k]) || I18N.fr[k] || I18N.en[k] || k;
+    }
+    function applyI18N(){
+      document.title = t('title');
+      document.querySelector('[data-i18n="subtitle"]').textContent = t('subtitle');
+      document.querySelectorAll('[data-i18n]').forEach(el=>{
+        const key = el.getAttribute('data-i18n');
+        if (key && key !== 'subtitle') el.textContent = t(key);
+      });
+      const pr = document.querySelector('input[name="prompt"]');
+      if (pr) pr.placeholder = t('prompt.ph');
+
+    }
+    function setLang(L){
+      if (!LANGS.includes(L)) L = 'fr';
+      window.appLang = L;
+      localStorage.setItem('app_lang', L);
+      const hidden = document.getElementById('appLangInput'); if (hidden) hidden.value = L;
+      document.documentElement.setAttribute('lang', L);
+      const lf = document.getElementById('langFlag');
+      if (lf) lf.textContent = FLAG[L] || '🏳️';
+      applyI18N();
+    }
+    function toggleLangMenu(force){
+      const menu = document.getElementById('langMenu');
+      const btn  = document.getElementById('langToggle');
+      const show = (typeof force==='boolean') ? force : menu.hidden;
+      menu.hidden = !show;
+      btn.setAttribute('aria-expanded', String(show));
+    }
+
+    // === Drag & Drop robuste ===
+    function isOkFile(f){ return /\.(csv|xlsx?)$/i.test(f.name); }
+
+    window.addEventListener('DOMContentLoaded', ()=>{
+      // init langue
+      const saved = localStorage.getItem('app_lang');
+      const guess = (navigator.language||'fr').slice(0,2).toLowerCase();
+      setLang(saved || (LANGS.includes(guess) ? guess : 'fr'));
+
+      // Lang UI
+      document.getElementById('langToggle')?.addEventListener('click', ()=> toggleLangMenu());
+      document.addEventListener('click', (e)=>{
+        const sw = document.querySelector('.lang-switcher');
+        if (sw && !sw.contains(e.target)) toggleLangMenu(false);
+      });
+      document.querySelectorAll('.lang-menu .lang-btn').forEach(b=>{
+        b.addEventListener('click', ()=>{ setLang(b.dataset.lang); toggleLangMenu(false); });
+      });
+
+      // Dropzone
+      const dropZone = document.getElementById('dropZone');
+      const fileInput = document.getElementById('datafile');
+      const fileName  = document.getElementById('fileName');
+
+      function useFiles(list){
+        if (!list || !list.length) return;
+        const f = list[0];
+        if (!isOkFile(f)){ fileName.textContent = t('unsupported'); return; }
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        fileInput.files = dt.files;              // remplit l'input réel (standard)
+        fileName.textContent = f.name;           // feedback
+      }
+
+      function openPicker(){
+        // 1) reset pour forcer le déclenchement même si on re-choisit le même fichier
+        fileInput.value = null;
+      
+        // 2) Certains Safari exigent que l'input ne soit pas explicitement non focusable
+        //    (on a déjà retiré tabindex/aria-hidden dans le PATCH 1)
+        fileInput.click();
+      }
+      
+      dropZone?.addEventListener('click', openPicker);
+      dropZone?.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') openPicker(); });
+      function onFilePicked(e){
+        const files = e.target.files;
+        if (!files || !files.length) return;
+        // Safari/macOS: s'assurer que FileList est bien peuplée
+        queueMicrotask(()=> useFiles(files));
+      }
+      fileInput?.addEventListener('change', onFilePicked);
+      fileInput?.addEventListener('input',  onFilePicked); // garde-fou Safari/iOS
+            
+
+      ['dragenter','dragover'].forEach(evt=>{
+        dropZone?.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); dropZone.classList.add('is-dragover'); });
+      });
+      ['dragleave','dragend','drop'].forEach(evt=>{
+        dropZone?.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('is-dragover'); });
+      });
+      dropZone?.addEventListener('drop', (e)=> useFiles(e.dataTransfer.files));
+      fileInput?.addEventListener('change', ()=> useFiles(fileInput.files));
+    });
+    function applyZoom(z){
+      document.body.classList.remove('plots-1x','plots-2x','plots-3x');
+      document.body.classList.add('plots-'+z);
+      localStorage.setItem('plots_zoom', z);
+      document.querySelectorAll('.density-switch .seg')
+        .forEach(b=>b.classList.toggle('active', b.dataset.zoom===z));
+    }
+    const dz = document.querySelector('.density-switch');
+    if (dz){
+      dz.addEventListener('click', e=>{
+        const b = e.target.closest('.seg'); if(!b) return; applyZoom(b.dataset.zoom);
+      });
+      applyZoom(localStorage.getItem('plots_zoom') || '1x');
+    }
+    function openLightbox(src, dlHref){
+      const lb = document.createElement('div');
+      lb.className='lightbox';
+      lb.innerHTML = `
+        <div class="lightbox-content" role="dialog" aria-label="Agrandir l'image">
+          <button class="close" aria-label="Fermer">×</button>
+          <img src="${src}" alt="">
+          <a class="btn small ghost" href="${dlHref||src}" download
+             style="position:absolute;left:0;bottom:-50px;">${t('btn.download')}</a>
+        </div>`;
+      document.body.appendChild(lb);
+      const close=()=>{ lb.remove(); document.removeEventListener('keydown',onEsc); };
+      const onEsc=e=>{ if(e.key==='Escape') close(); };
+      lb.addEventListener('click', e=>{ if(e.target===lb) close(); });
+      lb.querySelector('.close').addEventListener('click', close);
+      document.addEventListener('keydown', onEsc);
+    }
+    document.querySelectorAll('figure.plot img').forEach(img=>{
+      img.style.cursor='zoom-in';
+      img.addEventListener('click', ()=>{
+        const fig = img.closest('figure.plot');
+        const dl  = fig?.querySelector('a[download]');
+        openLightbox(img.src, dl?.href);
+      });
+    });
+
+    
+    
+  </script>
+</body>
+</html>
